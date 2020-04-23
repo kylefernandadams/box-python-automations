@@ -3,9 +3,9 @@ Python script traverse a folder hierarchy, get collaboration, last login activit
 
 ## Pre-Requisites
 1. Ensure you've completed pre-requisites in the [parent project documentation](../README.md)
-2. Install dependencies: 
+2. Install dependencies:
     * [dateutil](https://dateutil.readthedocs.io/en/stable/): Used for datetime conversion and parsing utilities.
-    * [openpyxl] (https://openpyxl.readthedocs.io/en/stable/): Used for create the Excel workbook and spreadsheet.
+    * [openpyxl](https://openpyxl.readthedocs.io/en/stable/): Used for create the Excel workbook and spreadsheet.
 3. Adjust the [event_types](/collaboration-report-generator/collab_report_generator.py#L11) variable as needed.
 4. Adjust the [limit](/collaboration-report-generator/collab_report_generator.py#L14) variable as needed.
     * More details on the [Enterprise Events Stream endpoint.](https://developer.box.com/reference/get-events/#request)
