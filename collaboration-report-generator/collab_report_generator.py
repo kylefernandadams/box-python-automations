@@ -7,6 +7,8 @@ from io import BytesIO
 from boxsdk import JWTAuth, Client
 from openpyxl import Workbook
 
+is_parent_folder = True
+
 # Events types LOGIN and at least one File event is required
 event_types='LOGIN,UPLOAD,DOWNLOAD,PREVIEW,DELETE,COPY,EDIT,MOVE,SHARE'
 
@@ -31,80 +33,93 @@ def main(box_config, parent_folder_id, month_lookback):
 
     # Get the current date and the date for one month ago
     today = datetime.utcnow()
-    past_month = today - relativedelta.relativedelta(months=month_lookback)
-    print('Using date range for events  today: {0} and past month: {1}'.format(today, past_month))
+    events_lookback_date = today - relativedelta.relativedelta(months=month_lookback)
+    print('Using date range for events  today: {0} and past month: {1}'.format(today, events_lookback_date))
 
     # Create a collaboration dictionary
-    create_collaboration_dict(client, parent_folder_id, past_month)
+    traverse_folder_tree(client, parent_folder_id)
     print('Found collab count: {0}'.format(len(folder_collaborations_dict)))
 
     # Get Box events 
-    get_box_events(client, limit, previous_stream_position, past_month, today)
+    get_box_events(client, limit, previous_stream_position, events_lookback_date, today)
     print('Found event count: {0}'.format(len(events_dict)))
 
     # Generate Excel report
     create_excel_report()
     print('Finished!')
 
-# Function to traverse a folder hierachy, get associated collaborations, and create a dictionary with the results
-def create_collaboration_dict(client, parent_folder_id, past_month):
-    # Get parent folder and its direct descendants
-    # TODO: Implement marker-based pagination
-    items = client.folder(folder_id=parent_folder_id).get_items(fields=['id', 'type', 'name', 'path_collection'])
-
-    # Loop through the folder children
-    for item in items:
-        # Create a string for the item path
-        path = ''
-        id_path = ''
-        for path_segment in item.path_collection['entries']:
-            path += '/{0}'.format(path_segment.name)
-            id_path += '/{0}'.format(path_segment.id)
-        path += '/{0}'.format(item.name)
-        id_path = '/{0}'.format(item.id)
-        print('Found item with id: {0}, type: {1}, and path: {2}'.format(item.id, item.type, path))
-
-        # Check if the item type is a folder or a file
-        collaborations = None
-        if item.type == 'folder':     
-            # Get the collaborations on the folder
-            # TODO: Implement marker-based pagination       
-            collaborations = client.folder(folder_id=item.id).get_collaborations(fields=['id', 'name', 'role', 'created_at' ,'accessible_by', 'status', 'acknowledged_at'])
-            
-            # We found a folder and therefore should call the current function relfectively
-            create_collaboration_dict(client, item.id, past_month)
-        else:
-            # Get the collaborations on the file
-            # TODO: Implement marker-based pagination       
-            collaborations = client.file(file_id=item.id).get_collaborations(fields=['id', 'name', 'role', 'created_at' ,'accessible_by', 'status', 'acknowledged_at'])
+# Function to traverse a folder hierachy, get associated collaborations, 
+def traverse_folder_tree(client, parent_folder_id):
+    global is_parent_folder
+    if is_parent_folder:
+        is_parent_folder = False
+        parent_folder = client.folder(folder_id=parent_folder_id).get(fields=['id', 'type', 'name', 'path_collection'])
+        get_folder_collaborations(client, parent_folder)
+    else:
+        # Get parent folder and its direct descendants
+        # TODO: Implement marker-based pagination
+        items = client.folder(folder_id=parent_folder_id).get_items(fields=['id', 'type', 'name', 'path_collection'])
         
-        # Loop through the collabations
-        for collab in collaborations:
-            # Only include collaboration that is with the month_lookback date range
-            collab_created_at = dateparser.parse(collab.created_at).replace(tzinfo=None)
-            if collab_created_at > past_month:
-                # Check if the collaboration accessible type is a group or a user since Groups will not have a login
-                accessible_by = collab.accessible_by
-                if accessible_by.type != 'group':
-                    accessible_by_name = accessible_by.name
-                    accessible_by_login = accessible_by.login
-                else:
-                    accessible_by_name = accessible_by.name
-                    accessible_by_login = 'Group'
-                
-                # Popuplate the folder collabation dictionary
-                folder_collaborations_dict[collab.id] = {}
-                folder_collaborations_dict[collab.id]['item_id'] = item.id
-                folder_collaborations_dict[collab.id]['item_name'] = item.name
-                folder_collaborations_dict[collab.id]['item_type'] = item.type
-                folder_collaborations_dict[collab.id]['item_path'] = path
-                folder_collaborations_dict[collab.id]['item_id_path'] = id_path
-                folder_collaborations_dict[collab.id]['collab_name'] = accessible_by_name
-                folder_collaborations_dict[collab.id]['collab_login'] = accessible_by_login
-                folder_collaborations_dict[collab.id]['collab_role'] = collab.role
-                folder_collaborations_dict[collab.id]['collab_status'] = collab.status
-                folder_collaborations_dict[collab.id]['collab_invite_date'] = collab.created_at
-                folder_collaborations_dict[collab.id]['collab_acknowledged_date'] = collab.acknowledged_at
+        # Loop through the folder children
+        for item in items:
+            get_folder_collaborations(client, item)
+    
+
+# Fucntion to get item collaborations
+def get_folder_collaborations(client, item):
+    # Check if the item type is a folder or a file
+    collaborations = None
+    if item.type == 'folder':     
+        # Get the collaborations on the folder
+        # TODO: Implement marker-based pagination       
+        collaborations = client.folder(folder_id=item.id).get_collaborations(fields=['id', 'name', 'role', 'created_at' ,'accessible_by', 'status', 'acknowledged_at'])
+
+        # Update the folder collaboration dictionary
+        update_collaboration_dict(collaborations, item)
+        
+        # We found a folder and therefore should call the current function relfectively
+        traverse_folder_tree(client, item.id)
+
+    
+
+# Function to create a dictionary to store collaborations
+def update_collaboration_dict(collaborations, item):
+    # Create a string for the item path
+    path = ''
+    id_path = ''
+    for path_segment in item.path_collection['entries']:
+        path += '/{0}'.format(path_segment.name)
+        id_path += '/{0}'.format(path_segment.id)
+    path += '/{0}'.format(item.name)
+    id_path = '/{0}'.format(item.id)
+    print('Found item with id: {0}, type: {1}, and path: {2}'.format(item.id, item.type, path))
+
+    # Loop through the collabations
+    for collab in collaborations:
+        # Check if the collaboration accessible type is a group or a user since Groups will not have a login
+        accessible_by = collab.accessible_by
+        if accessible_by.type != 'group':
+            accessible_by_name = accessible_by.name
+            accessible_by_login = accessible_by.login
+        else:
+            accessible_by_name = accessible_by.name
+            accessible_by_login = 'Group'
+        
+        print('Found collaboration with id: {0}, for item: {1}, collaborator id: {2}, and collaborator login: {3}'.format(collab.id, item.name, accessible_by.id, accessible_by_login))        
+        # Popuplate the folder collabation dictionary
+        collab_key = '{0}.{1}.{2}'.format(collab.id, item.id, accessible_by.id)
+        folder_collaborations_dict[collab_key] = {}
+        folder_collaborations_dict[collab_key]['item_id'] = item.id
+        folder_collaborations_dict[collab_key]['item_name'] = item.name
+        folder_collaborations_dict[collab_key]['item_type'] = item.type
+        folder_collaborations_dict[collab_key]['item_path'] = path
+        folder_collaborations_dict[collab_key]['item_id_path'] = id_path
+        folder_collaborations_dict[collab_key]['collab_name'] = accessible_by_name
+        folder_collaborations_dict[collab_key]['collab_login'] = accessible_by_login
+        folder_collaborations_dict[collab_key]['collab_role'] = collab.role
+        folder_collaborations_dict[collab_key]['collab_status'] = collab.status
+        folder_collaborations_dict[collab_key]['collab_invite_date'] = collab.created_at
+        folder_collaborations_dict[collab_key]['collab_acknowledged_date'] = collab.acknowledged_at
 
 # Function to get Box events 
 def get_box_events(client, limit, stream_position, created_after, created_before):
