@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from dateutil import parser as dateparser, relativedelta
 from io import BytesIO
-from boxsdk import JWTAuth, Client
+from boxsdk import JWTAuth, Client, LoggingClient
 from openpyxl import Workbook
 
 is_parent_folder = True
@@ -122,12 +122,16 @@ def parse_collaboration_values(client, collaborations, item):
                 # Get the user parameters
                 user = client.user(user_id=accessible_by.id).get(fields=['id', 'name', 'login', 'enterprise'])
 
-                # If the user EID is equal to the current EID, then its a managed user.
-                if user.enterprise.id == current_enterprise_id:
-                    user_type = 'Managed'
-                # Else, we have an external user
+                # Check if the user enterprise is null
+                if user.enterprise is not None:
+                    # If the user EID is equal to the current EID, then its a managed user.
+                    if user.enterprise.id == current_enterprise_id:
+                        user_type = 'Managed'
+                    # Else, we have an external user
+                    else:
+                        user_type = 'External'
                 else:
-                    user_type = 'External'
+                    user_type = ''
 
             # Call function to add an value to the folder collaboration dictionary
             update_folder_collab_dict(collab, item, path, id_path, user_type, accessible_by.id, accessible_by.name, accessible_by.login, collab_created_by)
@@ -216,7 +220,8 @@ def create_excel_report():
     worksheet.cell(column=14, row=row_count, value='Last Login Date')
     worksheet.cell(column=15, row=row_count, value='Last Activity Type')
     worksheet.cell(column=16, row=row_count, value='Last Activity User')
-    worksheet.cell(column=17, row=row_count, value='Last Activity Date')
+    worksheet.cell(column=17, row=row_count, value='IP Address')
+    worksheet.cell(column=18, row=row_count, value='Last Activity Date')
     row_count += 1
 
     # Loop through the folder collaboration dictionary and populate the excel cells
@@ -258,7 +263,8 @@ def create_excel_report():
         if last_file_event:
             worksheet.cell(column=15, row=row_count, value=last_file_event['event_type'])
             worksheet.cell(column=16, row=row_count, value=last_file_event['created_by_login'])
-            worksheet.cell(column=17, row=row_count, value=last_file_event['created_at'])
+            worksheet.cell(column=17, row=row_count, value=last_file_event['ip_address'])
+            worksheet.cell(column=18, row=row_count, value=last_file_event['created_at'])
         row_count += 1
 
     # Save the workbook to the local file system
@@ -309,7 +315,8 @@ def get_last_file_event(collab_id, login, item_type, item_id):
         created_at = value['created_at']
         created_by_login = value['created_by']['login']
         event_type = value['event_type']
-        return { 'event_type': event_type, 'created_by_login': created_by_login, 'created_at': created_at }
+        ip_address = value['ip_address']
+        return { 'event_type': event_type, 'created_by_login': created_by_login, 'created_at': created_at, 'ip_address': ip_address }
     else:
         # Service Accounts, groups, or the users that have not acepted a collaboration invite will not have a last login date
         return ''
