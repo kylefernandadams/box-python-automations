@@ -17,9 +17,6 @@ event_types='LOGIN,UPLOAD,DOWNLOAD,PREVIEW,DELETE,COPY,EDIT,MOVE,SHARE'
 # Limit of Box events to retrieve before starting to paginate
 limit = 100
 
-# Previous stream position to use for events pagination
-previous_stream_position = 0
-
 # Dictionaries to store data
 folder_collaborations_dict = {}
 events_dict = {}
@@ -47,7 +44,7 @@ def main(box_config, parent_folder_id, month_lookback):
     print('Found collab count: {0}'.format(len(folder_collaborations_dict)))
 
     # Get Box events
-    get_box_events(client, limit, previous_stream_position, events_lookback_date, today)
+    get_box_events(client, limit, 0, events_lookback_date, today)
     print('Found event count: {0}'.format(len(events_dict)))
 
     # Generate Excel report
@@ -167,32 +164,27 @@ def update_folder_collab_dict(collab, item, path, id_path, collab_type, accessib
 
 # Function to get Box events
 def get_box_events(client, limit, stream_position, created_after, created_before):
-    # Populate the URL query parameters
-    url_params = 'stream_type=admin_logs&event_type={0}&limit={1}&stream_position={2}&created_after={3}&created_before={4}'.format(event_types, limit, stream_position, created_after, created_before)
+    chunk_size = None
+    while chunk_size != 0:
+        # Populate the URL query parameters
+        url_params = 'stream_type=admin_logs&event_type={0}&limit={1}&stream_position={2}&created_after={3}&created_before={4}'.format(event_types, limit, stream_position, created_after, created_before)
 
-    # Set the previous stream position so we can compare it later on
-    previous_stream_position = stream_position
+        # GET request to retrieve events
+        events_response = client.make_request(
+            'GET',
+            client.get_url('events?{0}'.format(url_params)),
+        ).json()
 
-    # GET request to retrieve events
-    events_response = client.make_request(
-        'GET',
-        client.get_url('events?{0}'.format(url_params)),
-    ).json()
+        # Get the next stream position
+        stream_position = events_response['next_stream_position']
+        chunk_size = events_response['chunk_size']
+        print('Found events response with chunk_size={0}, next_stream_position={1}'.format(chunk_size, stream_position))
 
-    # Get the next stream position
-    next_stream_position = events_response['next_stream_position']
-    chunk_size = events_response['chunk_size']
-    print('Found events response with chunk_size={0}, next_stream_position={1}, and previous_stream_position={2}'.format(chunk_size, next_stream_position, previous_stream_position))
-
-    # Loop through the events and store them in a dictionary.
-    events = events_response['entries']
-    for event in events:
-        event_id = event['event_id']
-        events_dict[event_id] = event
-
-    # If the previous stream position is not equal to the next stream position, we need to continue to paginate and call the function reflectively
-    if previous_stream_position != next_stream_position:
-        get_box_events(client, limit, next_stream_position, created_after, created_before)
+        # Loop through the events and store them in a dictionary.
+        events = events_response['entries']
+        for event in events:
+            event_id = event['event_id']
+            events_dict[event_id] = event
 
 # Function to create an excel workbook
 def create_excel_report():
