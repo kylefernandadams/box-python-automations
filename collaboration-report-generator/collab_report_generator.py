@@ -188,6 +188,8 @@ def get_box_events(client, limit, stream_position, created_after, created_before
 
 # Function to create an excel workbook
 def create_excel_report():
+    print('Creating Excel report...')
+
     # Create an excel workbook
     workbook = Workbook()
     current_time = datetime.now()
@@ -217,6 +219,7 @@ def create_excel_report():
     row_count += 1
 
     # Loop through the folder collaboration dictionary and populate the excel cells
+    print('Iterating through a total of {0} collaborations:'.format(len(folder_collaborations_dict)))
     for key, value in folder_collaborations_dict.items():
         item_path = value['item_path']
         item_id_path = value['item_id_path']
@@ -248,11 +251,13 @@ def create_excel_report():
 
         # Call the get_last_login function to get the last login
         last_login = get_last_login(collab_login)
+        print('{0} - Adding last login datetime: {1}'.format(row_count-1, last_login))
         worksheet.cell(column=14, row=row_count, value=last_login)
 
         # Get the last file event details
         last_file_event = get_last_file_event(key, collab_login, item_type, item_id)
         if last_file_event:
+            print('{0} - Adding last event: {1}'.format(row_count-1, last_file_event['event_type']))
             worksheet.cell(column=15, row=row_count, value=last_file_event['event_type'])
             worksheet.cell(column=16, row=row_count, value=last_file_event['created_by_login'])
             worksheet.cell(column=17, row=row_count, value=last_file_event['ip_address'])
