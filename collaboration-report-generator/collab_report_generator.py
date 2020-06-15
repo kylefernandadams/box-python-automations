@@ -15,7 +15,7 @@ current_enterprise_id = None
 event_types='LOGIN,UPLOAD,DOWNLOAD,PREVIEW,DELETE,COPY,EDIT,MOVE,SHARE'
 
 # Limit of Box events to retrieve before starting to paginate
-limit = 100
+limit = 250
 
 # Dictionaries to store data
 folder_collaborations_dict = {}
@@ -23,7 +23,7 @@ events_dict = {}
 last_login_dict = {}
 
 # Main function
-def main(box_config, parent_folder_id, month_lookback):
+def main(box_config, parent_folder_id, day_lookback):
     # Get the Box service account client
     auth = JWTAuth.from_settings_file(box_config)
     client = Client(auth)
@@ -36,7 +36,7 @@ def main(box_config, parent_folder_id, month_lookback):
 
     # Get the current date and the date for one month ago
     today = datetime.utcnow()
-    events_lookback_date = today - relativedelta.relativedelta(months=month_lookback)
+    events_lookback_date = today - relativedelta.relativedelta(days=day_lookback)
     print('Using date range for events  today: {0} and past month: {1}'.format(today, events_lookback_date))
 
     # Create a collaboration dictionary
@@ -193,7 +193,7 @@ def create_excel_report():
     # Create an excel workbook
     workbook = Workbook()
     current_time = datetime.now()
-    report_filename = 'collab_report_{0}.xlsx'.format(current_time.strftime("%Y_%m_%d_%H_%M"))
+    report_filename = 'collab_report_{0}.xlsx'.format(current_time.strftime("%Y_%m"))
     worksheet = workbook.active
 
     # Create header row
@@ -322,7 +322,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create a Last Login Report')
     parser.add_argument('--box_config', metavar='/path/to/my/box_config.json', required=True, help='The path to your Box JWT app config')
     parser.add_argument('--parent_folder_id', metavar='12345679', required=True, help='Parent Folder ID to begin searching for collaborations')
-    parser.add_argument('--month_lookback', metavar='1', required=True, type=int, help='Integer that represents the amount of months to look back for events')
+    parser.add_argument('--day_lookback', metavar='1', required=True, type=int, help='Integer that represents the amount of days to look back for events')
 
     args = parser.parse_args()
-    main(args.box_config, args.parent_folder_id, args.month_lookback)
+    main(args.box_config, args.parent_folder_id, args.day_lookback)
