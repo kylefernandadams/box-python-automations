@@ -12,9 +12,9 @@ Python script traverse a folder hierarchy, get collaboration, last login activit
 5. Run the collab_report_generator.py Python script with the following parameters
     * --box_config: Path to your JWT public/private configuration json file
     * --parent_folderid: The folder_id for the folder in which you want to begin the traversing process
-    * --month_lookback: The integer for the number of months you want to look for new collaborations and enterprise events being created
+    * --day_lookback: The integer for the number of days you want to look for new enterprise events being created
     ```
-    python3 collab_report_generator.py --box_config /path/to/my/box_config.json --parent_folder_id 123456789 --month_lookback 3
+    python3 collab_report_generator.py --box_config /path/to/my/box_config.json --parent_folder_id 123456789 --day_lookback 1
     ```  
 
 ## Disclaimer
