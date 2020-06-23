@@ -1,10 +1,8 @@
 import argparse
-from pprint import pprint
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from dateutil import parser as dateparser, relativedelta
-from io import BytesIO
 from boxsdk import JWTAuth, Client, LoggingClient
 from openpyxl import Workbook
 
@@ -75,7 +73,7 @@ def get_folder_collaborations(client, item):
     if item.type == 'folder':
         # Get the collaborations on the folder
         # TODO: Implement marker-based pagination
-        collaborations = client.folder(folder_id=item.id).get_collaborations(fields=['id', 'name', 'role', 'created_at', 'created_by', 'accessible_by', 'status', 'acknowledged_at'])
+        collaborations = client.folder(folder_id=item.id).get_collaborations(fields=['id', 'name', 'role', 'created_at', 'created_by', 'accessible_by', 'status', 'acknowledged_at', 'invite_email'])
 
         # Parse the collaboration values so we can then update the folder collab dictionary
         parse_collaboration_values(client, collaborations, item)
@@ -105,41 +103,45 @@ def parse_collaboration_values(client, collaborations, item):
 
         # Check if the collaboration accessible type is a group or a user since Groups will not have a login
         accessible_by = collab.accessible_by
-        if accessible_by.type != 'group':
-            user_type = None
+        if accessible_by is not None:
+            if accessible_by.type != 'group':
+                user_type = None
 
-            # Check if the user is a Service Account
-            if accessible_by.login.endswith('@boxdevedition.com') and accessible_by.login.startswith('AutomationUser_'):
-                user_type = 'Service Account'
-            # Check if the user is an App User
-            elif accessible_by.login.endswith('@boxdevedition.com') and accessible_by.login.startswith('AppUser_'):
-                user_type = 'App User'
-            # Else we have a managed user or an external user
-            else:
-                # Get the user parameters
-                user = client.user(user_id=accessible_by.id).get(fields=['id', 'name', 'login', 'enterprise'])
-
-                # Check if the user enterprise is null
-                if user.enterprise is not None:
-                    # If the user EID is equal to the current EID, then its a managed user.
-                    if user.enterprise.id == current_enterprise_id:
-                        user_type = 'Managed'
-                    # Else, we have an external user
-                    else:
-                        user_type = 'External'
+                # Check if the user is a Service Account
+                if accessible_by.login.endswith('@boxdevedition.com') and accessible_by.login.startswith('AutomationUser_'):
+                    user_type = 'Service Account'
+                # Check if the user is an App User
+                elif accessible_by.login.endswith('@boxdevedition.com') and accessible_by.login.startswith('AppUser_'):
+                    user_type = 'App User'
+                # Else we have a managed user or an external user
                 else:
-                    user_type = ''
+                    # Get the user parameters
+                    user = client.user(user_id=accessible_by.id).get(fields=['id', 'name', 'login', 'enterprise'])
 
-            # Call function to add an value to the folder collaboration dictionary
-            update_folder_collab_dict(collab, item, path, id_path, user_type, accessible_by.id, accessible_by.name, accessible_by.login, collab_created_by)
-        else:
-            # We found a group so we need to get the group members
-            group_memberships = client.group(group_id=accessible_by.id).get_memberships(fields=['user', 'group'])
+                    # Check if the user enterprise is null
+                    if user.enterprise is not None:
+                        # If the user EID is equal to the current EID, then its a managed user.
+                        if user.enterprise.id == current_enterprise_id:
+                            user_type = 'Managed'
+                        # Else, we have an external user
+                        else:
+                            user_type = 'External'
+                    else:
+                        user_type = ''
 
-            # For each group member, add a item to the folder collaboration dictionary
-            for membership in group_memberships:
                 # Call function to add an value to the folder collaboration dictionary
-                update_folder_collab_dict(collab, item, path, id_path, 'Group: {0}'.format(membership.group.name), membership.user.id, membership.user.name, membership.user.login, collab_created_by)
+                update_folder_collab_dict(collab, item, path, id_path, user_type, accessible_by.id, accessible_by.name, accessible_by.login, collab_created_by)
+            else:
+                # We found a group so we need to get the group members
+                group_memberships = client.group(group_id=accessible_by.id).get_memberships(fields=['user', 'group'])
+
+                # For each group member, add a item to the folder collaboration dictionary
+                for membership in group_memberships:
+                    # Call function to add an value to the folder collaboration dictionary
+                    update_folder_collab_dict(collab, item, path, id_path, 'Group: {0}'.format(membership.group.name), membership.user.id, membership.user.name, membership.user.login, collab_created_by)
+        else:
+            # Call function to add an value to the folder collaboration dictionary
+            update_folder_collab_dict(collab, item, path, id_path, 'Pending User', None, None, collab.invite_email, collab_created_by)
 
 # Update the folder collaboration dictionary
 def update_folder_collab_dict(collab, item, path, id_path, collab_type, accessible_by_id, accessible_by_name, accessible_by_login, collab_created_by):
@@ -325,4 +327,5 @@ if __name__ == '__main__':
     parser.add_argument('--day_lookback', metavar='1', required=True, type=int, help='Integer that represents the amount of days to look back for events')
 
     args = parser.parse_args()
+
     main(args.box_config, args.parent_folder_id, args.day_lookback)
