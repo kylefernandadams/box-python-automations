@@ -14,8 +14,17 @@ Python script traverse a folder hierarchy, get collaboration, last login activit
     * --parent_folderid: The folder_id for the folder in which you want to begin the traversing process
     * --day_lookback: The integer for the number of days you want to look for new enterprise events being created
     ```
-    python3 collab_report_generator.py --box_config /path/to/my/box_config.json --parent_folder_id 123456789 --day_lookback 10
+    python3 collab_report_generator.py --box_config /path/to/my/box_config.json --parent_folder_id 123456789 --day_lookback 1
     ```  
+    OR
+    * --box_config: Path to your JWT public/private configuration json file
+    * --parent_folderid: The folder_id for the folder in which you want to begin the traversing process
+    * --start_date: String representing the start date to look for events. Format is YYYY-MM-DD
+    * --end_date: String representing the end date to look for events. Format is YYYY-MM-DD
+    ```
+    python3 collab_report_generator.py --box_config /path/to/my/box_config.json --parent_folder_id 123456789 --start_date 2020-01-15 --end_date 2020-02-15
+    ```  
+
 
 ## Disclaimer
 This project is a collection of open source examples and should not be treated as an officially supported product. Use at your own risk. If you encounter any problems, please log an [issue](https://github.com/kylefernandadams/box-python-automations/issues).

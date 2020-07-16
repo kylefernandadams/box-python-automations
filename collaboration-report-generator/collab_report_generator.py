@@ -21,7 +21,7 @@ events_dict = {}
 last_login_dict = {}
 
 # Main function
-def main(box_config, parent_folder_id, day_lookback):
+def main(box_config, parent_folder_id, day_lookback, start_date_str, end_date_str):
     # Get the Box service account client
     auth = JWTAuth.from_settings_file(box_config)
     client = Client(auth)
@@ -32,17 +32,26 @@ def main(box_config, parent_folder_id, day_lookback):
     service_account = client.user().get()
     print('Found Service Account with name: {0}, id: {1}, and login: {2}'.format(service_account.name, service_account.id, service_account.login))
 
-    # Get the current date and the date for one month ago
-    today = datetime.utcnow()
-    events_lookback_date = today - relativedelta.relativedelta(days=day_lookback)
-    print('Using date range for events  today: {0} and past month: {1}'.format(today, events_lookback_date))
+    start_date = None
+    end_date = None
+    if day_lookback is not None:
+        # Get the current date and the date for one month ago
+        start_date = end_date - relativedelta.relativedelta(days=day_lookback)
+        end_date = datetime.utcnow()
+    elif (start_date_str is not None) and (end_date_str is not None):
+        date_format = '%Y-%m-%d'
+        start_date = datetime.strptime(start_date_str, date_format)
+        end_date = datetime.strptime(end_date_str, date_format)
+    else:
+        raise Exception('--day_lookback OR --start_date AND --end_date are required parameters!')
+    print('Using date range for events - start date: {0} and end date: {1}'.format(start_date, end_date))
 
     # Create a collaboration dictionary
     traverse_folder_tree(client, parent_folder_id)
     print('Found collab count: {0}'.format(len(folder_collaborations_dict)))
 
     # Get Box events
-    get_box_events(client, limit, 0, events_lookback_date, today)
+    get_box_events(client, limit, 0, start_date, end_date)
     print('Found event count: {0}'.format(len(events_dict)))
 
     # Generate Excel report
@@ -324,8 +333,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create a Last Login Report')
     parser.add_argument('--box_config', metavar='/path/to/my/box_config.json', required=True, help='The path to your Box JWT app config')
     parser.add_argument('--parent_folder_id', metavar='12345679', required=True, help='Parent Folder ID to begin searching for collaborations')
-    parser.add_argument('--day_lookback', metavar='1', required=True, type=int, help='Integer that represents the amount of days to look back for events')
+    parser.add_argument('--day_lookback', metavar='1', type=int, help='Integer that represents the amount of days to look back for events')
+    parser.add_argument('--start_date', metavar='2020-01-10', help='String representing the start date to look for events. Format is YYYY-MM-DD')
+    parser.add_argument('--end_date', metavar='2020-07-15', help='String representing the end date to look for events. Format is YYYY-MM-DD')
 
     args = parser.parse_args()
 
-    main(args.box_config, args.parent_folder_id, args.day_lookback)
+    main(args.box_config, args.parent_folder_id, args.day_lookback, args.start_date, args.end_date)
