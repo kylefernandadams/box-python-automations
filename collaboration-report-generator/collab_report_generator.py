@@ -5,6 +5,7 @@ from datetime import datetime
 from dateutil import parser as dateparser, relativedelta
 from boxsdk import JWTAuth, Client, LoggingClient
 from openpyxl import Workbook
+from pprint import pprint
 
 is_parent_folder = True
 current_enterprise_id = None
@@ -124,19 +125,21 @@ def parse_collaboration_values(client, collaborations, item):
                     user_type = 'App User'
                 # Else we have a managed user or an external user
                 else:
-                    # Get the user parameters
-                    user = client.user(user_id=accessible_by.id).get(fields=['id', 'name', 'login', 'enterprise'])
+                    # Check if the collaboration status = pending. You cannot get the user objecct for an external uesr if the collaboration has not been accepted.
+                    if collab.status != 'pending':
+                        # Get the user parameters
+                        user = client.user(user_id=accessible_by.id).get(fields=['id', 'name', 'login', 'enterprise'])
 
-                    # Check if the user enterprise is null
-                    if user.enterprise is not None:
-                        # If the user EID is equal to the current EID, then its a managed user.
-                        if user.enterprise.id == current_enterprise_id:
-                            user_type = 'Managed'
-                        # Else, we have an external user
+                        # Check if the user enterprise is null
+                        if user.enterprise is not None:
+                            # If the user EID is equal to the current EID, then its a managed user.
+                            if user.enterprise.id == current_enterprise_id:
+                                user_type = 'Managed'
+                            # Else, we have an external user
+                            else:
+                                user_type = 'External'
                         else:
-                            user_type = 'External'
-                    else:
-                        user_type = ''
+                            user_type = ''
 
                 # Call function to add an value to the folder collaboration dictionary
                 update_folder_collab_dict(collab, item, path, id_path, user_type, accessible_by.id, accessible_by.name, accessible_by.login, collab_created_by)
